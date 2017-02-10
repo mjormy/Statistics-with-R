@@ -1,0 +1,228 @@
+---
+title: "Exploring women's smoking habits in BRFSS data"
+output: 
+  html_document: 
+    fig_height: 4
+    highlight: pygments
+    theme: spacelab
+---
+
+## Setup
+
+### Load packages
+
+```{r load-packages, message = FALSE}
+library(ggplot2)
+library(dplyr)
+```
+
+### Load data
+
+To start with the analysis, the **brfss2013.RData** dataset is loaded to the environment.
+
+```{r load-data}
+load("/Users/mariajoseormaza/Documents/Coursera/Statistics Course/Project/brfss2013.RData")
+```
+
+* * *
+
+## Part 1: Data
+
+The data to be analysed comes from a survey on US people's habits conducted through telephone calls. The study is observational  with ramdom sampling and a considerable number of respondents, therefore it can be generalised to US citizens. 
+It can be argued that there are some sources of bias due to the data collection method: telephone calls could have been not picked up or people could have refused to answer the survey.
+
+Since the study is observational and not experimental there is not random assignment to different treatments, therefore the results of the study cannot be used to suggest causation.
+
+* * *
+
+## Part 2: Research questions
+
+I propose the following research questions to explore how women's lifestyles relate to their smoking habits of woman and their perception on their own health. After reviewing the code book, the following research questions have been chosen:
+
+### Research quesion 1:
+
+Some studies and articles ([Kahn *et al*, 2002](http://www.ncbi.nlm.nih.gov/pmc/articles/PMC1447332/), [Kandel *et al*, 2009](http://www.ncbi.nlm.nih.gov/pmc/articles/PMC2774716/), [The Express Tribune, 2015](http://tribune.com.pk/story/906906/high-cigarette-cost-lowers-smoking-among-educated-women/), among others) suggest that there is a relationship between womens' level of education and their likelihood to smoke or quit smoking. This research question aims to analyse if the results of the survey corroborate that claim.
+
+> Is there a relationship between women's education level and their current smoking frequency?
+
+**Variables:**
+
+* ```educa```: Categorical. *What is the highest grade or year of school you completed?*
+* ```smokday2```: Categorical. *Do you now smoke cigarettes every day, some days, or not at all?*
+
+* **Filter variable:** ```sex```: Categorical. *Indicate sex of respondent.*  
+  
+### Research quesion 2: 
+
+Excersise has been reported to have a positive effect in people who try to quit smoking ([Prapavessis *et al*, 2007](https://www.researchgate.net/profile/Robert_Grove3/publication/6699284_The_effects_of_exercise_and_nicotine_replacement_therapy_on_smoking_rates_in_women/links/0c96051b1c9fa0d3ef000000.pdf), [Taylor *et al*, 2007](http://www.asat.org.ar/images/comunidad/biblioteca/actividad_fisica_y_cesacion_2007.pdf)) and has been reported to be more effective for men than for women ([Higgins, 2008](http://www.health.com/health/condition-article/0,,20213803,00.html)). This research question intends to find out if there is a relationship between the women's attempts to quit smoking and exercising. 
+
+> Is there a relationship between reporting to have tried to quit smoking in the last year and reporting to have exercised in the last month?
+
+**Variables:**
+
+* ```exerany2```: Categorical. *During the past month, other than your regular job, did you participate in any physical activities or exercises such as running, calisthenics, golf, gardening, or walking for exercise?*
+* ```stopsmk2```: Categorical. *During the past 12 months, have you stopped smoking for one day or longer because you were trying to quit smoking?*
+* **Filter variable:** ```sex```: Categorical. *Indicate sex of respondent.*  
+  
+### Research quesion 3:
+
+Finally, this research question aims to explore whether people's reported smoking habits relates to their perception on their general health.
+
+> Is there a relationship between women's smoking status and perceptions on their own general health?
+
+**Variables**
+
+* ```X_smoker3```: Categorical. Calculated. *Four-level smoker status: Everyday smoker, Someday smoker, Former smoker, Non-smoker*
+* ```genhlth```: Categorical. *Would you say that in general your health is:*
+* **Filter variable:** ```sex```: Categorical. *Indicate sex of respondent.*
+
+* * *
+
+## Part 3: Exploratory data analysis
+
+For each research question, a subset of the data was extracted. The subsets include only the relevant variables needed in order to answer the correspondent research question. Additionally, the registers with null values in the variables to be analysed were filtered out. 
+
+### Research quesion 1
+
+**Is there a relationship between women's education level and their current smoking frequency?**  
+
+#### Filtering
+
+To obtain the subset for this research question, the rows with ```sex = Female``` are selected and the rows with "NA" values in either ```educa``` or ```smokday2``` are filered out. 
+
+```{r}
+rq1 <- subset(brfss2013, brfss2013$educa != "NA" & brfss2013$smokday2 != "NA" & brfss2013$sex == "Female", select = c(educa, smokday2))
+```
+  
+Now, the subset ```rq1``` has 2 variables.
+```{r}
+colnames(rq1)
+```
+  
+There are 113737 registers that match the criteria for the analysis.
+```{r}
+nrow(rq1)
+```
+
+Obtaining summaries for each variable independently we get the counts for each value in the two variables:
+
+```{r}
+summary(rq1$educa)
+summary(rq1$smokday2)
+```
+
+#### Plotting the data
+
+In order to better understand the data, it is turned into a frequency table with the variables ```smokday2``` and ```educa```
+
+```{r}
+rq1ftable <- table(rq1$educa, rq1$smokday2)
+ftable(rq1ftable)
+```
+  
+Additionally, we can analise the data using a segmented bar plot
+```{r}
+ggplot(data = rq1, aes(x = smokday2, fill = educa)) +
+  geom_bar() 
+```
+  
+From the frequency table and the plot, the data suggests that women with higher education levels report that they do not smoke at all. Less female college graduates report to smoke than females with Grade 12 or GED and females with some college or technical school. It is worth noting that from the women that report to smoke every day, the ones with grade 12 or GED are the most numerous.
+
+***
+
+### Research quesion 2
+
+**Is there a relationship between reporting to have tried to quit smoking in the last year and reporting to have exercised in the last month?**
+
+#### Filtering
+
+To obtain the subset for this research question, the rows with ```sex = Female``` are selected and the rows with "NA" values in either ```exerany2``` or ```stopsmk2``` are filered out. 
+
+```{r}
+rq2 <- subset(brfss2013, brfss2013$exerany2 != "NA" & brfss2013$stopsmk2 != "NA" & brfss2013$sex == "Female", select = c(exerany2, stopsmk2))
+colnames(rq2)
+```
+
+Now, the subset ```rq2``` has 2 variables.
+```{r}
+colnames(rq2)
+```
+  
+There are 39653 registers that match the criteria for the analysis.
+```{r}
+nrow(rq2)
+```
+
+Obtaining summaries for each variable independently we get the counts for each value in the two variables:
+
+```{r}
+summary(rq2$exerany2)
+summary(rq2$stopsmk2)
+```
+
+#### Plotting the data
+
+In order to better understand the data, it is turned into a frequency table with the variables ```exerany2``` and ```stopsmk2```
+
+```{r}
+rq2ftable <- table(rq2$exerany2, rq2$stopsmk2)
+ftable(rq2ftable)
+```
+  
+Additionally, we can analise the data using a segmented bar plot
+```{r}
+ggplot(data = rq2, aes(x = stopsmk2, fill = exerany2)) +
+  geom_bar()
+```
+
+From the frequency table and the plot, the data shows that there is a relationship between attempting to quit smoking in the last year and exercising in the last month. From women who report having tried to quit smoking, the number of those who report to have exercised in the last month is bigger than the ones who report not to have excercised.
+
+***
+
+### Research quesion 3:
+
+**Is there a relationship between women's smoking status and perceptions on their own general health?**
+
+#### Filtering
+
+To obtain the subset for this research question, the rows with ```sex = Female``` are selected and the rows with "NA" values in either ```X_smoker3``` or ```genhlth``` are filered out. 
+
+```{r}
+rq3 <- subset(brfss2013, brfss2013$X_smoker3 != "NA" & brfss2013$genhlth != "NA" & brfss2013$sex == "Female", select = c(X_smoker3, genhlth))
+colnames(rq3)
+```
+
+Now, the subset ```rq3``` has 2 variables.
+```{r}
+colnames(rq3)
+```
+  
+There are 280602 registers that match the criteria for the analysis.
+```{r}
+nrow(rq3)
+```
+
+Obtaining summaries for each variable independently we get the counts for each value in the two variables:
+
+```{r}
+summary(rq3$X_smoker3)
+summary(rq3$genhlth)
+```
+
+#### Plotting the data
+
+In order to better understand the data, it is turned into a frequency table with the variables ```genhlth``` and ```X_smoker3```
+
+```{r}
+rq3ftable <- table(rq3$X_smoker3, rq3$genhlth)
+ftable(rq3ftable)
+```
+
+Additionally, we can analise the data using a segmented bar plot
+
+```{r}
+ggplot(data = rq3, aes(x = genhlth, fill = X_smoker3)) +
+  geom_bar()
+```
+
+Although there is a slightly higher number of non smokers (Never smoked, Former smoker) that perceive their general health as Very good, the data does not show a clear relationship between women's smoking habits and their perception of their general health. 

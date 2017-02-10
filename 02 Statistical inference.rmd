@@ -1,0 +1,240 @@
+---
+title: "Statistical inference with the GSS data"
+output: 
+  html_document: 
+    fig_height: 4
+    highlight: pygments
+    theme: spacelab
+---
+
+## Setup
+
+### Load packages
+
+```{r load-packages, message = FALSE}
+library(ggplot2)
+library(dplyr)
+library(statsr)
+```
+
+### Load data
+To start with the analysis, the **gss.Rdata** dataset is loaded to the environment.
+```{r load-data}
+load("gss.Rdata")
+```
+
+* * *
+
+## Part 1: Data
+
+The data to be analysed comes from a survey conducted through face-to-face, telephone and computer-assisted personal (CAPI) interviews. The objective of the survey is "to monitor and explain trends and constants in attitudes, behaviors, and attributes" ([National Opinion Research Center, 2013](http://www.icpsr.umich.edu/cgi-bin/file?comp=none&study=34802&ds=1&file_id=1136502&path=ICPSR)). 
+
+Said survey is part of an observational study with a multi-stage area probability sample to the block or segment level. Additionally, at the block level, quota sampling is used with quotas based on sex, age, and employment status. A substantial number of respondents were reached for the purposes of the survey. The use of random sampling suggests that the study can be generalised to people who reside in the US. It can be argued that there are some sources of bias due to the data collection methods: telephone calls could have been not picked up, people could have been out of their homes or they simply could have refused to answer the survey.
+
+Since the study is observational and not experimental, there was no random assignment to different treatments, therefore the study cannot be used to suggest causation, regardless of the results of the inference methods used in the sections below.
+
+* * *
+
+## Part 2: Research question
+
+In 2011, men and women from 143 countries were asked if they feel safe walking alone at night in the area they live in ([Gallup, 2012](http://www.gallup.com/poll/155402/women-feel-less-safe-men-developed-countries.aspx)). In 84 of those countries, there were significant differences in women's and men's answers, suggesting that women are much more likely to feel unsafe walking at night. Particularly in the US, the difference was 27 points (only 62% of women felt safe walking in their area at night, compared to 89% of men.)
+
+After reviewing the code book, I propose the following research question to explore the difference between women's and men's perceptions of their own safety in the year 2012 to see if the trend remains.
+
+> How do women and men compare with respect to their perception of their safety when walking in their neighborhood at night?
+
+**Variables:**
+
+* Grouping variable: ```sex```. Categorical. *Respondent's sex*
+* Response variable: ```fear```. Categorical. *Is there any area right around here - that is, within a mile - where you would be afraid to walk alone at night?*
+
+* **Filter variable:** ```year```: Categorical. *GSS year for this respondent.*  Only the records for the year 2012 will be included.
+
+* * *
+
+## Part 3: Exploratory data analysis
+
+#### Filtering
+
+A subset of the relevant variables for the research question is obtained. Additionally, the registers with NA values in the ```fear``` variable are filtered out. 
+
+```{r}
+fear2012 <- subset(gss, gss$year == "2012" & (gss$fear == "Yes" | gss$fear == "No"), select = c(sex, fear))
+```
+
+Now, the subset ```fear2012``` has 2 variables.
+```{r}
+colnames(fear2012)
+```
+  
+There are 1300 registers that match the criteria for the analysis.
+```{r}
+nrow(fear2012)
+```
+
+Obtaining summaries for each variable independently we get the counts for both levels in each variable:
+
+```{r}
+summary(fear2012$sex)
+summary(fear2012$fear)
+```
+
+#### Plotting the data
+
+In order to better understand the data, it is turned into a frequency table with the variables ```sex``` and ```fear```
+
+```{r}
+fear2012_freq <- table(fear2012$sex, fear2012$fear)
+ftable(fear2012_freq)
+```
+  
+Additionally, we can analyse the data using a segmented bar plot
+```{r}
+ggplot(data = fear2012, aes(x = sex, fill = fear)) +
+  geom_bar() 
+```
+
+The table and the plot suggest that there is a relationship between sex and the likelihood of being afraid to walk alone at night. There is a bigger proportion of women than men that where afraid to walk alone at night.
+
+* * *
+
+## Part 4: Inference
+
+### Introduction
+
+Considering that both selected variables are categorical and both have 2 levels, the following methods will be used:
+
+- A confidence interval for comparing proportions: With this method we can ascertain whether there is a significant difference in the proportions of the answers of men and women.
+- Hypothesis testing: This method allows us to verify whether the difference in the proportions is posible by chance or there is a relationship between the sex of the respondents and the likelihood of feeling afraid to walk alone at night.
+
+### Conditions for inference for comparing two independent proportions
+
+For the purposes of the analysis, we will use the following criteria:
+
+Response Variable  | Success value | Failure value | Confidence interval
+------------------ | ------------- | ------------- | -------------------
+```fear```         | Yes           | No            | 95%
+
+To start the analysis, we check for the conditions for inference as follows:
+
+1. **Independence**
+- **Within groups:** There is random sampling and the number of observations is much less than 10% of the population.
+- **Between groups:** The two groups are non-paired, therefore, they are independent from each other. 
+
+2. **Sample size / skew**
+To evaluate if the sample meets the success-failure condition, we refer to the frequency table obtained above:
+- For ```sex = Female```: 324 successes, 398 failures
+- For ```sex = Male```: 121 successes, 457 failures
+
+The samples can be assumed to be independent both within and between groups.
+Each sample meets the success-failure condition.
+
+For the above, we can say that the conditions for inference are met, therefore we can assume the sampling distribution of the difference between the two proportions is nearly normal. 
+Even though simulation could be used, meeting the success-failure condition guarantees that an approach based on the CLT is suitable for the study and we can use a confidence interval to work with the research question.
+
+### Calculate confidence interval
+
+To calculate the confidence interval, we first calculate the $\hat p$ values both for the *Male* and *Female* groups.
+
+```{r}
+# Calculating n for each group
+n_female = sum(fear2012$sex == "Female")
+n_male = sum(fear2012$sex == "Male")
+
+# Calculating the number of successes for each group
+success_female = sum(fear2012$sex == "Female" & fear2012$fear == "Yes")
+success_male = sum(fear2012$sex == "Male" & fear2012$fear == "Yes")
+
+# Calculating phat for each group
+phat_female = round(success_female / n_female, digits = 3)
+phat_male = round(success_male / n_male, digits = 3)
+```
+
+Group     | n             | Successes          | $\hat p$ 
+--------- | ------------- | ------------------ | -------------
+Female    | `r n_female`  | `r success_female` | `r phat_female`
+Male      | `r n_male`    | `r success_male`   | `r phat_male`
+
+Since we are looking for a 95% confidence interval, we have the following $z^*$ value:
+```{r}
+# z* value for the 95% CI
+z_95ci = 1.96
+```
+
+Now, we calculate the confidence interval as:
+
+$\left(\hat p_F - \hat p_M \right) \pm z^* SE$
+
+where $SE = \sqrt{\frac{\hat p_F \left( 1 - \hat p_F\right)} {n_F} + \frac{\hat p_M \left( 1 - \hat p_M\right)} {n_M}}$  
+
+We get the following:
+
+$(`r phat_female` - `r phat_male`) \pm `r z_95ci` \sqrt{\frac{`r phat_female` \left( 1 - `r phat_female`\right)} {`r n_female`} + \frac{`r phat_male` \left( 1 - `r phat_male`\right)} {`r n_male`}}$
+
+```{r}
+# Calculating the standard error (SE)
+se = round( sqrt( (phat_female*(1-phat_female)/n_female) + (phat_male*(1-phat_male)/n_male) ), digits = 4 )
+
+#Calculating the difference between the p hats (the point estimate)
+point_estimate = phat_female-phat_male
+
+cat ("SE: ",se,
+     "\nPoint estimate: ", point_estimate)
+```
+
+Replacing the values for the point estimate and the standard error, we get:
+
+$= `r point_estimate` \pm `r z_95ci` \times `r se`$
+
+```{r}
+# Calculating de margin of error (ME)
+me = round( z_95ci * se, digits = 4)
+
+cat("ME: ",me)
+```
+
+Now, replacing the value for the margin of error, we get:
+
+$=`r point_estimate` \pm `r me`$
+
+It means that our confidence interval is:
+
+```{r}
+# Calculating the lower and upper limits of the CI
+ci_lower = point_estimate - me
+ci_upper = point_estimate + me
+```
+
+$=\left( `r ci_lower`, `r ci_upper` \right)$ 
+
+We are 95% confident that the proportion of US women who were afraid of walking alone at night is `r ci_lower*100`% to `r ci_upper*100`% higher than the proportion of men that have felt that way.
+
+If we compare this result with the Gallup survey mentioned above, the trend seems consistent. In 2011, men reported feeling safe walking alone at night 27% more than women.
+
+### Hypothesis testing
+
+In order to have another source of insight, we use the inference function for hypothesis testing with the following hypotheses: 
+
+$H_0:\hat p_F - \hat p_M  = 0$
+There is no difference between the proportions of women and men that would feel afraid walking alone in their neighbourhood at night.
+
+$H_A:\hat p_F - \hat p_M  \neq 0$ 
+There is a difference between the proportion of women and men that would feel afraid walking alone in their neighbourhood at night.
+
+```{r}
+inference(y = fear, x = sex, data = fear2012, statistic = "proportion", type = "ht", null = 0, alternative = "twosided", success = "Yes", method = "theoretical")
+```
+
+It can be seen that the p-value is very low, therefore we reject the null hypothesis in favor of the alternative hypothesis: the results could not have occured by chance and there was, indeed, a difference between men and women feeling afraid to walk alone at night in 2012.
+
+The results are consistent with Gallup's 2011 survey: It was observed that there is a difference between the answers of women and men regarding the matter of this study in many countries, therefore the difference of proportions is unlikely to occur by chance.
+
+* * *
+
+## Part 5: Conclusions
+
+After using 2 methods for comparing proportions, we can conclude that there is a relationship between sex and the likelihood of feeling safe / unsafe walking alone at night in one's neighbourhood: Women seem to be proportionally less likely to feel safe than men.
+
+Due to the sample methods, this result can be generalized to the population of the US.
+
+It could be interesting to explore in further studies if there is a difference between demographic groups like race, age or perceived sexual orientation. 

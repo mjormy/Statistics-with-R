@@ -1,0 +1,439 @@
+---
+title: "Modeling and prediction for movies"
+output: 
+  html_document: 
+    fig_height: 4
+    highlight: pygments
+    theme: spacelab
+---
+
+## Setup
+
+### Load packages
+
+```{r load-packages, message = FALSE}
+library(ggplot2)
+library(dplyr)
+library(statsr)
+```
+
+### Load data
+
+To start with the analysis, the **movies.rdata** dataset is loaded to the environment.
+
+```{r load-data}
+load("movies.rdata")
+```
+
+* * *
+
+## Part 1: Data
+
+The data to be analysed consists of information about 651 randomly sampled movies. The dataset includes information about the movie (title, genre, among others), release dates in theathers and DVD, [IMDB](http://www.imdb.com) and [Rotten Tomatos](https://www.rottentomatoes.com/) scores, and information about awards, main actors and actresses.
+
+Regarding the scores, in IMDB users can rate films on a scale of 1 to 10, and the totals are converted into a weighted mean-rating that is displayed beside each title. It can be said that convenience sampling is used. (IMDB [Wikipedia page](https://en.wikipedia.org/wiki/IMDb))
+
+Rotten Tomatoes, on the other hand, collects online reviews from writers who are certified film critics. Additionally, the audience can rate movies from 0 to 10. Purposive (expert) and convenience sampling are used for the critics and audience, respectively.  (Rotten Tomatoes [Wikipedia page](https://en.wikipedia.org/wiki/Rotten_Tomatoes))
+
+The use of random sampling suggests that the results can be used for generalization. Since the movies are a simple random sample, it can be argued, for example, that some genres might be less represented than others. Convenience samples are argued to be a source of bias, specially in case like ours, when the rating is based on subjective aspects. Therefore, we need to be cautions with the results of inference and prediction when analysing this dataset.
+
+There was no random assignment for the collection of the rating data or the movie sampling, hence, the study cannot be used to suggest causation, regardless of the results of the methods used in the sections below.
+
+* * *
+
+## Part 2: Research question
+
+Studies are always competing to have the most successful and influential movies. Paramount pictures has not exceeded the legacy of their ultimate iconic film Titanic from 1997 and we want to understand what variables can lead to an equal or even bigger success. Consequently, the interest of our boss is learning what attributes make a movie popular. For this analysis, we will use IMDB's rating `imdb_rating` and Rotten Tomatoes' audience scores `audience_score` as our measures of a film's popularity (more on that below). The above mentioned movie is 195 minutes long, but the top 10 movies in Rotten Tomatoes are far shorter than that. We wonder if the length of a movie would influence on its popularity.
+
+> If a movie is longer than 120 minutes, is that a significant predictor for its popularity expressed in terms of its Rotten Tomatos' ratings?
+
+* * *
+
+## Part 3: Exploratory data analysis
+
+### Preparing the dataset
+
+The dataset provides 32 variables to play with. The current fields are the following:
+
+```{r}
+names(movies)
+```
+
+Even though our research question aims to detect if running_time is a good predictor, we choose different variables to have room for comparison. 
+
+First, we recode the `runtime` variable and make it categorical:
+
+```{r recode_runtime, message = FALSE}
+movies$running_time <- cut(movies$runtime, breaks=c(-Inf, 40, 60, 90, 120, Inf),  labels=c("< 40 min","40-60 min","60-90 min","90-120 min",">120 min"))
+```
+
+Now, we merge the `best_actor_win` and `best_actress_win` variables in one:
+
+```{r recode_actor_actress_win, message = FALSE}
+movies$casting_win <- ifelse(movies$best_actor_win == "yes", "Yes", ifelse(movies$best_actress_win == "yes", "Yes", "No"))
+```
+
+We change the numerical `thtr_rel_month` to a categorical variable
+```{r}
+movies$release_month <- month.abb[movies$thtr_rel_month]
+```
+
+We want our ratings to be expresed in the same scale. Therefore we transform `critics_score` and `audience_score`
+
+```{r}
+movies$rt_critics_score <- movies$critics_score/10
+movies$rt_audience_score <- movies$audience_score/10
+```
+
+For this analysis, we can consider using IMDB's rating `imdb_rating` and Rotten Tomatoes' audience scores `audience_score` as our measures of a film's popularity.
+
+Let's analise both variables:
+
+```{r}
+#IMDB ratings
+summary(movies$imdb_rating)
+```
+
+```{r}
+#Rotten Tomatoes audience score
+summary(movies$rt_audience_score)
+```
+
+We compare the distribution of the values. The Rotten Tomatoes' scores show a lower median and a wider IQR. The score appears to be more strict than IMDB's. We can then consider `rt_audience_score` as our explanatory variable for the popularity of the films.
+
+Our reduced dataset is now:
+
+```{r}
+movies_reduced <- subset(movies, select = c(rt_audience_score, rt_critics_score, genre, running_time, release_month, best_dir_win, casting_win))
+
+names(movies_reduced)
+
+head(movies_reduced)
+```
+
+### Summary statistics and data plots
+
+Now, we plot the relationship between the variables, having `rt_audience_score` as response variable.
+
+### `rt_critics_score`
+```{r}
+ggplot(data=movies_reduced, aes(x = rt_critics_score, y = rt_audience_score)) + geom_point()+
+   labs(title = "Audience Score against Critics Score", x = "Critics Score", y = "Audience Score")
+
+summary(movies_reduced$rt_critics_score)
+```
+
+We can see that there is a positive linear relationship between `critics_score` y `audience_score`. We keep the variable for the model.
+
+### `genre`
+```{r}
+ggplot(data = movies_reduced, aes(x=genre, y = rt_audience_score)) +
+  geom_boxplot()+
+  labs(title = "Audience Score by Genre", x = "Genre", y = "Audience Score")+
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+summary(movies_reduced$genre)
+```
+
+The plot shows a clear variation of scores between different genres for the movies in the sample. Documentaries and Musical &  Performing Arts show higher punctuations. We can also keep this variable.
+
+### `release_month`
+```{r}
+ggplot(data=movies_reduced,aes(x = release_month, y = rt_audience_score)) +
+  geom_boxplot() +
+  labs(title = "Audience Score by Release Month", x = "Release Month", y = "Audience Score")
+
+summary(movies_reduced$release_month)
+```
+
+The plot shows different medians for the months, but similar IQRs.
+
+### `running_time`
+```{r}
+ggplot(data=movies_reduced,aes(x = running_time, y = rt_audience_score)) + 
+  geom_boxplot() +
+  labs(title = "Audience Score by Movie running_time", x = "Running time", y = "Audience Score")
+
+summary(movies_reduced$running_time)
+```
+
+The plot shows a variation between movies with different lengths. We keep this variable as well.
+
+### `best_dir_win`
+```{r}
+ggplot(data=movies_reduced,aes(x = best_dir_win, y = rt_audience_score)) + 
+  geom_boxplot() +
+  labs(title = "Audience Score by Winning Director", x = "Winning Director", y = "Audience Score")
+
+summary(movies_reduced$best_dir_win)
+```
+
+According to the plot, movies with Oscar award winning directors appear to score higher. This variable is kept too.
+
+### `casting_win`
+```{r}
+ggplot(data=movies_reduced,aes(x = casting_win, y = rt_audience_score)) + 
+  geom_boxplot() +
+  labs(title = "Audience Score by Winning Casting", x = "Winning Casting", y = "Audience Score")
+
+summary(movies_reduced$casting_win)
+```
+
+It does not appear to be a major difference in scores between movies with and without Oscar winning casting. We decide to leave this variable outside our model.
+
+The dataset for our model is now the following:
+
+```{r}
+movies_full <- subset(movies_reduced, select = c(rt_audience_score, rt_critics_score, genre, running_time, release_month, best_dir_win))
+
+#Cleaning up the working space
+rm(movies)
+rm(movies_reduced)
+```
+
+* * *
+
+## Part 4: Modeling
+
+Since the investment that is needed to make a movie is really high, we are interested in more reliable predictors over statiscally significant ones. Therefore, we choose backwards ellimination with $R^2$ instead of p-value method.
+
+We start with a full model considering the variables: 
+
+- **Explanatory variables:** `rt_critics_score`, `genre`, `running_time`, `release_month`, `best_dir_win`
+- **Response variable:** `rt_audience_score`
+
+```{r}
+model_full <- lm(rt_audience_score ~ rt_critics_score + genre + running_time + release_month + best_dir_win, data = movies_full)
+summary(model_full)
+```
+
+variables included             | removed          | adjusted $R^2$ 
+------------- | ------------------ | -------------
+`rt_audience_score ~ rt_critics_score + genre + running_time + release_month + best_dir_win`  |  | **0.5242**
+
+### STEP 1
+
+We start removing variables one by one to see which change yields the higher $R^2$. 
+
+First, we remove `rt_critics_score`
+
+```{r}
+model_1 <- lm(rt_audience_score ~ genre + running_time + release_month + best_dir_win, data = movies_full)
+summary(model_1)
+```
+
+
+variables included             | removed          | adjusted $R^2$ 
+--------- | ------------- | ------------------ | -------------
+`rt_audience_score ~ rt_critics_score + genre + running_time + release_month + best_dir_win`  |  | **0.5242**
+`rt_audience_score ~ genre + running_time + release_month + best_dir_win`  |  `rt_critics_score` | 0.2023
+
+We got a $R^2$ of 0.2023. That means that we should keep `rt_critics_score` in our model.
+
+Now we remove `genre`
+
+```{r}
+model_1 <- lm(rt_audience_score ~ rt_critics_score + running_time + release_month + best_dir_win, data = movies_full)
+summary(model_1)
+```
+
+variables included             | removed          | adjusted $R^2$ 
+------------- | ------------------ | -------------
+`rt_audience_score ~ rt_critics_score + genre + running_time + release_month + best_dir_win`  |  | **0.5242**
+`rt_audience_score ~ genre + running_time + release_month + best_dir_win`  |  `rt_critics_score` | 0.2023
+`rt_audience_score ~ rt_critics_score + running_time + release_month + best_dir_win`  |  `genre` | 0.5007
+
+We got a $R^2$ of 0.5007. That means that we should keep `genre` in our model.
+
+Now we remove `running_time`
+
+```{r}
+model_1 <- lm(rt_audience_score ~ rt_critics_score + genre + release_month + best_dir_win, data = movies_full)
+summary(model_1)
+```
+
+variables included             | removed          | adjusted $R^2$ 
+------------- | ------------------ | -------------
+`rt_audience_score ~ rt_critics_score + genre + running_time + release_month + best_dir_win`  |  | **0.5242**
+`rt_audience_score ~ genre + running_time + release_month + best_dir_win`  |  `rt_critics_score` | 0.2023
+`rt_audience_score ~ rt_critics_score + running_time + release_month + best_dir_win`  |  `genre` | 0.5007
+`rt_audience_score ~ rt_critics_score + genre + release_month + best_dir_win`  |  `running_time` | 0.513
+
+We got a $R^2$ of 0.513. That means that we should keep `running_time` in our model.
+
+Now we remove `release_month`
+
+```{r}
+model_1 <- lm(rt_audience_score ~ rt_critics_score + genre + running_time + best_dir_win, data = movies_full)
+summary(model_1)
+```
+
+variables included             | removed          | adjusted $R^2$ 
+------------- | ------------------ | -------------
+`rt_audience_score ~ rt_critics_score + genre + running_time + release_month + best_dir_win`  |  | **0.5242**
+`rt_audience_score ~ genre + running_time + release_month + best_dir_win`  |  `rt_critics_score` | 0.2023
+`rt_audience_score ~ rt_critics_score + running_time + release_month + best_dir_win`  |  `genre` | 0.5007
+`rt_audience_score ~ rt_critics_score + genre + release_month + best_dir_win`  |  `running_time` | 0.513
+`rt_audience_score ~ rt_critics_score + genre + running_time + best_dir_win`  |  `release_month` | **0.5306**
+
+We got a $R^2$ of 0.5306, which is higher than our original model. That means that we might drop `release_month` from our model.
+
+Finally we remove `best_dir_win`
+
+```{r}
+model_1 <- lm(rt_audience_score ~ rt_critics_score + genre + running_time + release_month, data = movies_full)
+summary(model_1)
+```
+
+variables included             | removed          | adjusted $R^2$ 
+------------- | ------------------ | -------------
+`rt_audience_score ~ rt_critics_score + genre + running_time + release_month + best_dir_win`  |  | **0.5242**
+`rt_audience_score ~ genre + running_time + release_month + best_dir_win`  |  `rt_critics_score` | 0.2023
+`rt_audience_score ~ rt_critics_score + running_time + release_month + best_dir_win`  |  `genre` | 0.5007
+`rt_audience_score ~ rt_critics_score + genre + release_month + best_dir_win`  |  `running_time` | 0.513
+`rt_audience_score ~ rt_critics_score + genre + running_time + best_dir_win`  |  `release_month` | **0.5306**
+`rt_audience_score ~ rt_critics_score + genre + running_time + release_month`  |  `best_dir_win` | **0.5249**
+
+We got a $R^2$ of 0.5249, which is higher than our original model.
+
+Considering that both `best_dir_win` and `release_month` yield higher $R^2$, we can remove them from our model.
+
+### STEP 2
+
+For our next step, we start removing both `best_dir_win` and `release_month`
+
+```{r}
+model_2 <- lm(rt_audience_score ~ rt_critics_score + genre + running_time, data = movies_full)
+summary(model_2)
+```
+
+variables included             | removed          | adjusted $R^2$ 
+------------- | ------------------ | -------------
+`rt_audience_score ~ rt_critics_score + genre + running_time`  |  `best_dir_win`, `release_month` | **0.5313**
+
+Now, we look for a $R^2$ higher than **0.5313**.
+
+Let's remove `running_time`
+
+```{r}
+model_2 <- lm(rt_audience_score ~ rt_critics_score + genre, data = movies_full)
+summary(model_2)
+```
+
+variables included             | removed          | adjusted $R^2$ 
+------------- | ------------------ | -------------
+`rt_audience_score ~ rt_critics_score + genre + running_time`  |  `best_dir_win`, `release_month` | **0.5313**
+`rt_audience_score ~ rt_critics_score + genre`  |  `best_dir_win`, `release_month`, `running_time` | 0.5197
+
+We keep `running_time` in the model.
+
+Let's remove `genre`
+
+```{r}
+model_2 <- lm(rt_audience_score ~ rt_critics_score + running_time, data = movies_full)
+summary(model_2)
+```
+
+variables included             | removed          | adjusted $R^2$ 
+------------- | ------------------ | -------------
+`rt_audience_score ~ rt_critics_score + genre + running_time`  |  `best_dir_win`, `release_month` | **0.5313**
+`rt_audience_score ~ rt_critics_score + genre`  |  `best_dir_win`, `release_month`, `running_time` | 0.5197
+`rt_audience_score ~ rt_critics_score + running_time`  |  `best_dir_win`, `release_month`, `genre` | 0.5064
+
+We keep `genre` in the model as well.
+
+Finally, let's remove `rt_critics_score`
+
+```{r}
+model_2 <- lm(rt_audience_score ~ genre + running_time, data = movies_full)
+summary(model_2)
+```
+
+variables included             | removed          | adjusted $R^2$ 
+------------- | ------------------ | -------------
+`rt_audience_score ~ rt_critics_score + genre + running_time`  |  `best_dir_win, release_month` | **0.5313**
+`rt_audience_score ~ rt_critics_score + genre`  |  `best_dir_win, release_month, running_time` | 0.5197
+`rt_audience_score ~ rt_critics_score + running_time`  |  `best_dir_win, release_month, genre` | 0.5064
+`rt_audience_score ~ genre + running_time`  |  `best_dir_win, release_month, rt_critics_score`,  |  0.2057
+
+Since none of the $R^2$ values are higher than **0.5313**, our final model to predict `rt_audience_score` will use `rt_critics_score`, `genre` and `running_time` as predictors.
+
+```{r}
+model_final <- lm(rt_audience_score ~ rt_critics_score + genre + running_time, data = movies_full)
+```
+
+Observing the value of the estimate for `running_time:90-120 min` we can conclude that being more than 120 minutes long is a significant predictor of the popularity of a movie expressed in terms of Rotten Tomatoes audience ratings.
+
+### Model diagnostics
+
+
+1. Linear relationships between numerical x and y
+
+As seen in the EDA, there seems to exist a linear relationship between `rt_critics_score` y `rt_audience_score`. Now we confirm with the Residuals plot. 
+```{r}
+ggplot(data = model_final, aes(x = .fitted, y = .resid)) +
+  geom_point() +
+  geom_hline(yintercept = 0, linetype = "dashed") +
+  xlab("Fitted values") +
+  ylab("Residuals")
+
+```
+
+The condition of random scatter around 0 is met.
+
+2. Nearly normal resituals with mean 0
+
+```{r}
+hist(model_final$residuals)
+qqnorm(model_final$residuals)
+qqline(model_final$residuals)
+```
+
+The plot is indeed nearly normal around 0.
+
+3. Constant variability of residuals
+
+```{r}
+plot(model_final$residuals ~ model_final$fitted)
+```
+
+The condition of constant variability is met.
+
+* * *
+
+## Part 5: Prediction
+
+The movies chosen for this part of the study are [Now you see me 2](https://www.rottentomatoes.com/m/now_you_see_me_2/) and [Jason Bourne](http://www.imdb.com/title/tt4196776/?ref_=inth_ov_tt). We predict the scores with a prediction interval of 90%.
+
+First we analyse **Now you see me 2**
+```{r}
+new_movie_1 <- data.frame(rt_critics_score =3.4, genre = "Mystery & Suspense", running_time="90-120 min")
+
+predict(model_final, new_movie_1, interval = "prediction", level = 0.90)
+```
+
+The model predicts, with 90% confidence, that a Mystery & Suspense movie with a critic score of 3.4 and a running time between 90 and 120 minutes, is expected to have an audience score between 5.36 and 8.35.
+
+Now, we analyse **Jason Bourne**
+```{r}
+new_movie_2 <- data.frame(rt_critics_score =5.6, genre = "Action & Adventure", running_time=">120 min")
+
+predict(model_final, new_movie_2, interval = "prediction", level = 0.90)
+```
+
+The model predicts, with 90% confidence, that an Action & Adventure movie with a critic score of 5.6 and a running time higher than 120 minutes, is expected to have an audience score between 3.16 and 9.16.
+
+* * *
+
+## Part 6: Conclusion
+
+We came to the conclusion that a movie's running time higher than 120 minutos is a good predictor for its Rotten Tomatoes' audience score. To arrive to that conclusion, we started with an exploratory analysis in wich we discarded the `` variable.
+After that, with a subset of the first group of variables we performed backwards elimination with $R^2$ and excluded 2 more variables. Finally, we got the following:
+
+variables included             | removed          | adjusted $R^2$ 
+------------- | ------------------ | -------------
+`rt_audience_score ~ rt_critics_score + genre + running_time`  |  `best_dir_win, release_month` | **0.5313**
+
+We checked the conditions for model diagnostic and confirmed with plots that we met them all.
+
+The model can still be refined by using some variables that were left behind and a bigger data sample.
